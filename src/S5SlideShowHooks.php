@@ -35,7 +35,7 @@ use Article as MWArticle;
 
 class S5SlideShowHooks {
 	/** @var string[] */
-	private static $styles = [
+	public static $styles = [
 		'core.css'    => 's5-core.css',
 		'base.css'    => 's5-base.css',
 		'framing.css' => 's5-framing.css',
@@ -44,40 +44,25 @@ class S5SlideShowHooks {
 	/** @var bool */
 	public static $parsingSlide = false;
 
-	// Setup parser hooks for S5
+	/**
+	 * Setup the article view parser hooks for S5;
+	 * ?action=slide replaces them in Render::createParser()
+	 *
+	 * @param \Parser $parser
+	 */
 	public static function ParserFirstCallInit( $parser ) {
-		if ( !isset( $parser->extS5Hooks ) ) {
-			$parser->setHook(
-				'slideshow', [ 'S5SlideShow\Render', 'slideshow_view' ]
-			);
-			$parser->setHook(
-				'slide', 'S5SlideShow\Render::slideshow_legacy'
-			);
-			$parser->setHook(
-				'slides', 'S5SlideShow\Render::slides_view'
-			);
-			$parser->setHook(
-				'slidecss', 'S5SlideShow\Render::slidecss_view'
-			);
-		} elseif ( $parser->extS5Hooks === 'parse' ) {
-			$parser->setHook( 'slideshow', [ $parser->extS5, 'slideshow_parse' ] );
-			$parser->setHook( 'slide', [ $parser->extS5, 'slideshow_parse' ] );
-			$parser->setHook(
-				'slides', 'S5SlideShow\Render::empty_tag_hook'
-			);
-			$parser->setHook(
-				'slidecss', 'S5SlideShow\Render::empty_tag_hook'
-			);
-		} elseif ( $parser->extS5Hooks === 'parse2' ) {
-			$parser->setHook(
-				'slideshow', 'S5SlideShow\Render::empty_tag_hook'
-			);
-			$parser->setHook(
-				'slide', 'S5SlideShow\Render::empty_tag_hook'
-			);
-			$parser->setHook( 'slides', [ $parser->extS5, 'slides_parse' ] );
-			$parser->setHook( 'slidecss', [ $parser->extS5, 'slidecss_parse' ] );
-		}
+		$parser->setHook(
+			'slideshow', [ 'S5SlideShow\Render', 'slideshow_view' ]
+		);
+		$parser->setHook(
+			'slide', 'S5SlideShow\Render::slideshow_legacy'
+		);
+		$parser->setHook(
+			'slides', 'S5SlideShow\Render::slides_view'
+		);
+		$parser->setHook(
+			'slidecss', 'S5SlideShow\Render::slidecss_view'
+		);
 	}
 
 	// Setup hook for image scaling hack
