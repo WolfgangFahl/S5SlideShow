@@ -286,9 +286,11 @@ class Render {
 			}
 		}
 		$this->getParser();
-		$p = new Parser;
-		$p->extS5 = $this;
-		$p->extS5Hooks = 'parse';
+		$p = MediaWikiServices::getInstance()->getParserFactory()->create();
+		$p->setHook( 'slideshow', [ $this, 'slideshow_parse' ] );
+		$p->setHook( 'slide', [ $this, 'slideshow_parse' ] );
+		$p->setHook( 'slides', __CLASS__ . '::empty_tag_hook' );
+		$p->setHook( 'slidecss', __CLASS__ . '::empty_tag_hook' );
 		$p->parse( $content, $this->sTitle, $this->parserOptions );
 		if ( isset( $this->attr['headingmark'] ) && $this->attr['headingmark'] !== false ) {
 			$content = $this->transform_section_slides( $content );
@@ -344,7 +346,6 @@ class Render {
 		$parser->setHook( 'slide', __CLASS__ . '::empty_tag_hook' );
 		$parser->setHook( 'slides', [ $this, 'slides_parse' ] );
 		$parser->setHook( 'slidecss', [ $this, 'slidecss_parse' ] );
-		$parser->mShowToc = false;
 		$this->slideParser = $parser;
 		return $this->slideParser;
 	}
