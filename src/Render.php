@@ -126,12 +126,15 @@ class Render {
 						|| intval( $attr['scaled'] ) === 1;
 		// Default author = first revision's author
 		if ( !isset( $attr['author'] ) ) {
-			$rev = $this->sArticle->getOldestRevision();
-			if ( $rev ) {
-				$attr['author'] = User::newFromId( $rev->getUser() )->getRealName();
+			$services = MediaWikiServices::getInstance();
+			$rev = $services->getRevisionLookup()->getFirstRevision( $this->sTitle );
+			$revUser = $rev ? $rev->getUser() : null;
+			if ( $revUser ) {
+				$attr['author'] = $services->getUserFactory()
+					->newFromUserIdentity( $revUser )->getRealName();
 			} else {
 				// Not saved yet
-				$attr['author'] = $this->sArticle->getUser()->getRealName();
+				$attr['author'] = $this->sArticle->getContext()->getUser()->getRealName();
 			}
 		}
 		$contentLanguage = MediaWikiServices::getInstance()->getContentLanguage();
@@ -322,7 +325,7 @@ class Render {
 		);
 		S5SlideShowHooks::$parsingSlide = $prev;
 		$wgOut->addParserOutput( $output );
-		return $output->getText();
+		return $output->getText( [ 'enableSectionEditLinks' => false ] );
 	}
 
 	// Create parser object for $this->parse()
@@ -331,9 +334,6 @@ class Render {
 			return $this->slideParser;
 		}
 		$this->parserOptions = ParserOptions::newFromContext( $this->sArticle->getContext() );
-		// deprecated since 1.31, use ParserOutput::getText() options instead.
-		//$this->parserOptions->setEditSection( false );
-		$this->parserOptions->setNumberHeadings( false );
 		$this->parserOptions->enableLimitReport( false );
 		// Since $this->parse() is only used in ?action=slide,
 		// we can use it directly without cloning or creating a new object
@@ -406,7 +406,7 @@ class Render {
 		$replace['[style]'] = $this->attr['style'];
 		$replace['[styleurl]'] = 'index.php?action=slide&s5skin='
 							   . $this->attr['style'] . '&s5css=1';
-		$replace['[pageid]'] = $this->sArticle->getID();
+		$replace['[pageid]'] = $this->sArticle->getPage()->getId();
 		$replace['[scaled]'] = $this->attr['scaled'] ? 'true' : 'false';
 		$replace['[defaultView]'] = 'slideshow';
 
@@ -566,12 +566,11 @@ class Render {
 			}
 			$opt = clone $oldOpt;
 			$opt->enableLimitReport( false );
-			$opt->setEditSection( false );
 			$parser->extClonedOptions = $opt;
 		}
 		$html = $parser->parse(
 			$content, $parser->getTitle(), $parser->extClonedOptions, !$inline, false
-		)->getText();
+		)->getText( [ 'enableSectionEditLinks' => false ] );
 		$parser->setOptions( $oldOpt );
 		return $html;
 	}
