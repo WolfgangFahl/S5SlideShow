@@ -35,7 +35,7 @@ use Article as MWArticle;
 
 class S5SlideShowHooks {
 	/** @var string[] */
-	private static $styles = [
+	public static $styles = [
 		'core.css'    => 's5-core.css',
 		'base.css'    => 's5-base.css',
 		'framing.css' => 's5-framing.css',
