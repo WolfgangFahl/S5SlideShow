@@ -142,12 +142,12 @@ class Render {
 				$attr['subfooter'] .= ', ';
 			}
 			$attr['subfooter'] .= $contentLanguage->timeanddate(
-				$this->sArticle->getTimestamp(), true
+				$this->sArticle->getPage()->getTimestamp(), true
 			);
 		} else {
 			$attr['subfooter'] = str_ireplace(
 				'{{date}}',
-				$contentLanguage->timeanddate( $this->sArticle->getTimestamp(), true ),
+				$contentLanguage->timeanddate( $this->sArticle->getPage()->getTimestamp(), true ),
 				$attr['subfooter']
 			);
 		}
@@ -600,7 +600,7 @@ class Render {
 				if ( mb_strpos( $value, "{{date}}" ) !== false ) {
 					$value = str_ireplace(
 						'{{date}}',
-						$contentLanguage->timeanddate( $article->getTimestamp(), true ),
+						$contentLanguage->timeanddate( $article->getPage()->getTimestamp(), true ),
 						$value
 					);
 				}
