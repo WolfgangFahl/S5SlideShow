@@ -65,6 +65,12 @@ class Render {
 	private $css;
 	/** @var array */
 	public $attr;
+	/** @var string|null pattern for the headingmark attribute */
+	private $heading_re;
+	/** @var string|null pattern for the incmark attribute */
+	private $inc_re;
+	/** @var string|null pattern for the centermark attribute */
+	private $center_re;
 
 	/**
 	 * Constructor. If $attr is not an array(), article content
@@ -159,10 +165,13 @@ class Render {
 
 	/**
 	 * Checks heading text for headingmark, incmark, centermark
-	 * Returns NULL or array(title, incremental, centered)
+	 *
+	 * @param string $heading the wikitext of a heading including its = signs
+	 * @return array|null [ title, incremental, centered ],
+	 * null if the heading does not start a slide
 	 */
-	public function check_slide_heading( $node ) {
-		$ot = trim( $node->nodeValue, "= \n\r\t\v" );
+	public function check_slide_heading( $heading ) {
+		$ot = trim( $heading, "= \n\r\t\v" );
 		$st = $this->attr['headingmark'] ? preg_replace( $this->heading_re, '', $ot ) : $ot;
 		if ( !$this->attr['headingmark'] || $st != $ot ) {
 			$inc = false;
@@ -187,89 +196,93 @@ class Render {
 	}
 
 	/**
+	 * The regular expression for one of the slideshow attributes
+	 * headingmark, incmark and centermark
+	 *
+	 * @param string $name the name of the attribute
+	 * @return string|null the pattern, null if the attribute is not set
+	 */
+	private function mark_pattern( $name ) {
+		$pattern = null;
+		if ( !empty( $this->attr[$name] ) ) {
+			$pattern = '/' . preg_quote( $this->attr[$name], '/' ) . '/';
+		}
+		return $pattern;
+	}
+
+	/**
+	 * The opening <slides> tag for a slide heading
+	 *
+	 * @param array $st [ title, incremental, centered ] as of check_slide_heading
+	 * @return string
+	 */
+	private function slides_open_tag( array $st ) {
+		$tag = '<slides title="' . htmlspecialchars( $st[0] ) . '"';
+		if ( $st[1] ) {
+			$tag .= ' incremental="1"';
+		}
+		if ( $st[2] ) {
+			$tag .= ' center="1"';
+		}
+		$tag .= '>';
+		return $tag;
+	}
+
+	/**
+	 * Is the given preprocessor node a <slide>, <slides>, <slideshow>
+	 * or <slidecss> extension tag?
+	 *
+	 * @param \PPNode $node
+	 * @param PPFrame $frame
+	 * @return bool
+	 */
+	private function is_slide_tag( $node, $frame ) {
+		$isSlideTag = false;
+		if ( $node->getName() === 'ext' ) {
+			$ext = $node->splitExt();
+			$name = $frame->expand( $ext['name'], PPFrame::RECOVER_ORIG );
+			$isSlideTag = substr( $name, 0, 5 ) === 'slide';
+		}
+		return $isSlideTag;
+	}
+
+	/**
 	 * This function transforms section slides into <slides> tags
+	 *
+	 * It walks the top level nodes of the preprocessor tree, so a heading
+	 * within nowiki or within a template argument never starts a slide.
+	 * A slide runs from its heading to the next heading or slide tag.
 	 */
 	private function transform_section_slides( $content ) {
 		$p = $this->getParser();
 		$content = $p->preprocess( $content, $this->sTitle, $this->parserOptions );
 		$p->setOutputType( Parser::OT_WIKI );
-		$node = $p->preprocessToDom( $content );
-		// mediawiki 1.33
-		$node = $node->node;
-		$doc = $node->ownerDocument;
-		$all = $node->childNodes;
-		if ( $this->attr['headingmark'] ) {
-			$this->heading_re = '/' . str_replace(
-				'/', '\\/', preg_quote( $this->attr['headingmark'] )
-			) . '/';
-		}
-		if ( $this->attr['incmark'] ) {
-			$this->inc_re = '/' . str_replace(
-				'/', '\\/', preg_quote( $this->attr['incmark'] )
-			) . '/';
-		}
-		if ( $this->attr['centermark'] ) {
-			$this->center_re = '/' . str_replace(
-				'/', '\\/', preg_quote( $this->attr['centermark'] )
-			) . '/';
-		}
-		$allLen = $all->length;
-		wfDebug( __METHOD__ . ": checking " . $allLen . " document nodes for slide transformation" );
-		for ( $i = 0; $i < $allLen; $i++ ) {
-			$c = $all->item( $i );
-			if ( isset( $c->nodeName ) && $c->nodeName == 'h' && ( $st = $this->check_slide_heading( $c ) ) !== null ) {
-				/**
-				 * Add
-				 * <ext><name>slides</name><attr>ATTRS</attr><inner>CONTENT</inner></ext>
-				 */
-				$slide = $doc->createElement( 'ext' );
-				$e = $doc->createElement( 'name' );
-				$e->nodeValue = 'slides';
-				$slide->appendChild( $e );
-				$e = $doc->createElement( 'attr' );
-				$v = ' title="' . htmlspecialchars( $st[0] ) . '"';
-				if ( $st[1] ) {
-					$v .= ' incremental="1"';
-				}
-				if ( $st[2] ) {
-					$v .= ' center="1"';
-				}
-				$e->nodeValue = htmlspecialchars( $v );
-				$slide->appendChild( $e );
-				$e = $doc->createElement( 'inner' );
-				$slide->appendChild( $e );
-				$e1 = $doc->createElement( 'close' );
-				$e1->nodeValue = "</slides>\n";
-				$slide->appendChild( $e1 );
-				$node->insertBefore( $slide, $c );
-				$node->removeChild( $c );
-				// Move children of $node to $e, up to first <ext>
-				// with name="slide(s)" or heading of same or greater level
-				for ( $j = $i + 1; $j < $all->length; ) {
-					$d = $all->item( $j );
-					if ( $d->nodeName == 'h' ) {
-						break;
-					}
-					if ( $d->nodeName == 'ext' ) {
-						$name = $d->getElementsByTagName( 'name' );
-						if ( count( $name ) != 1 ) {
-							die(
-								__METHOD__ . ': Internal error, <ext> without <name>'
-								. 'in DOM text'
-							);
-						}
-						if ( substr( $name->item( 0 )->nodeValue, 0, 5 ) === 'slide' ) {
-							break;
-						}
-					}
-					$node->removeChild( $d );
-					$e->appendChild( $d );
-				}
+		$root = $p->preprocessToDom( $content );
+		$frame = $p->getPreprocessor()->newFrame();
+		$this->heading_re = $this->mark_pattern( 'headingmark' );
+		$this->inc_re = $this->mark_pattern( 'incmark' );
+		$this->center_re = $this->mark_pattern( 'centermark' );
+		$text = '';
+		// the closing tag of the slide that is open at this point, if any
+		$close = '';
+		for ( $node = $root->getFirstChild(); $node; $node = $node->getNextSibling() ) {
+			$wikitext = $frame->expand( $node, PPFrame::RECOVER_ORIG );
+			$isHeading = $node->getName() === 'h';
+			$st = $isHeading ? $this->check_slide_heading( $wikitext ) : null;
+			if ( $st !== null ) {
+				// a slide heading ends the open slide and starts the next one
+				$text .= $close . $this->slides_open_tag( $st );
+				$close = "</slides>\n";
+			} elseif ( $isHeading || $this->is_slide_tag( $node, $frame ) ) {
+				// any other heading and any slide tag ends the open slide
+				$text .= $close . $wikitext;
+				$close = '';
+			} else {
+				$text .= $wikitext;
 			}
 		}
-		$frame = $p->getPreprocessor()->newFrame();
-		$text = $frame->expand( $node, PPFrame::RECOVER_ORIG );
-		$text = $frame->parser->getStripState()->unstripBoth( $text );
+		$text .= $close;
+		$text = $p->getStripState()->unstripBoth( $text );
 		return $text;
 	}
 
@@ -353,7 +366,11 @@ class Render {
 	private function getHeadItems() {
 		// Extract loader scripts and styles from OutputPage::headElement()
 		global $wgOut;
-		$skin = new Skin();
+		// a skin needs a name; the options are those of the apioutput skin of core
+		$skin = new Skin( [
+			'name' => 'apioutput',
+			'styles' => [ 'mediawiki.skinning.interface' ],
+		] );
 		$context = $wgOut->getContext();
 		$context->setSkin( $skin );
 		$s = $wgOut->headElement( $skin );
@@ -464,7 +481,10 @@ class Render {
 			array_values( $replace ),
 			$slide_template
 		);
-		$html = MediaWikiServices::getInstance()->getContentLanguage()->convert( $html );
+		$services = MediaWikiServices::getInstance();
+		$html = $services->getLanguageConverterFactory()
+			->getLanguageConverter( $services->getContentLanguage() )
+			->convert( $html );
 
 		// output generated content
 		$wgOut->disable();
