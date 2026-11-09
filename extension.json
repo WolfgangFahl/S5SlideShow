@@ -2,7 +2,7 @@
 	"name": "S5SlideShow",
 	"namemsg": "s5slide-name",
 	"descriptionmsg": "s5slide-desc",
-	"version": "0.4",
+	"version": "0.5",
 	"license-name": "GPL-2.0+",
 	"type": "parserhook",
 	"url": "https://www.mediawiki.org/wiki/Extension:S5SlideShow",
